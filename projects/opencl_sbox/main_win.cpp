@@ -21,7 +21,7 @@ static cl::Buffer       g_input_buffer;
 static cl::Buffer       g_output_buffer;
 
 static cl_uint g_num_particles = 60 * 256;
-static real*   g_particles;
+static real*   g_particles     = nullptr;
 
 static cl::Buffer g_particles_buf;
 static cl::Buffer g_pinned_output_buf;
@@ -251,6 +251,7 @@ int main(int argc, char * argv[])
     }
 
     _aligned_free(g_particles);
+    g_particles = nullptr;
 
     return 0;
 }
