@@ -7,11 +7,13 @@
 #include <string>
 #include <cstdlib>
 #include <random>
+#include <fstream>
 
 using real  = cl_float;
 using real2 = cl_float2;
 
 static cl_device_type g_device_type = CL_DEVICE_TYPE_GPU;
+const  size_t g_block_size = 256u;
 
 static cl::Platform     g_platform;
 static cl::Context      g_context;
@@ -19,12 +21,19 @@ static cl::Device       g_device;
 static cl::CommandQueue g_command_queue;
 static cl::Buffer       g_input_buffer;
 static cl::Buffer       g_output_buffer;
+static cl::Program      g_program;
+static cl::Kernel       g_kernel;
 
 static cl_uint g_num_particles = 60 * 256;
 static real*   g_particles     = nullptr;
+static real*   g_out_particles = nullptr;
+static real*   g_pin_particles = nullptr;
 
 static cl::Buffer g_particles_buf;
 static cl::Buffer g_pinned_output_buf;
+
+static std::string g_kernel_file("kernel_file.cl");
+static std::string g_kernel_name("test_kernel");
 
 static void set_platform(void)
 {
@@ -48,6 +57,7 @@ static void set_platform(void)
     catch(cl::Error& e)
     {
         std::cout << "set_platform() failed (" << status << ") : " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -70,6 +80,7 @@ static void set_context(void)
     catch(cl::Error& e)
     {
         std::cout << "set_context() failed (" << status << ") : " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -133,6 +144,7 @@ static void set_device()
     catch(cl::Error& e)
     {
         std::cout << "set_device() failed (" << status << ") : " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -175,6 +187,7 @@ static void set_command_queue(void)
     catch(cl::Error& e)
     {
         std::cout << "set_command_queue() failed (" << status << ") : " << e.what() << std::endl;
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -192,7 +205,7 @@ static void set_buffers(void)
         // see https://rocmdocs.amd.com/en/latest/Programming_Guides/Opencl-optimization.html#regular-device-buffers
         // fails without CL_MEM_USE_HOST_PTR on Windows
         g_particles_buf = cl::Buffer(g_context,
-                                     CL_MEM_USE_HOST_PTR | CL_MEM_READ_WRITE,
+                                     CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
                                      total_bytes,
                                      g_particles,
                                      &status);
@@ -203,12 +216,25 @@ static void set_buffers(void)
         g_pinned_output_buf = cl::Buffer(g_context,
                                          CL_MEM_USE_HOST_PTR,
                                          total_bytes,
-                                         g_particles,
+                                         g_pin_particles,
                                          &status);
+
+        // g_output_buffer = cl::Buffer(g_context,
+        //                              CL_MEM_USE_HOST_PTR | CL_MEM_WRITE_ONLY,
+        //                              total_bytes,
+        //                              g_out_particles,
+        //                              &status);
+
+        g_output_buffer = cl::Buffer(g_context,
+                                     CL_MEM_WRITE_ONLY,
+                                     total_bytes,
+                                     NULL,
+                                     &status);
     }
     catch(cl::Error& e)
     {
-        std::cout << "set_buffers() failed (" << status << ") : " << e.what() << std::endl;
+        std::cout << "set_buffers() failed (" << status << ") : " << e.err() << " - " <<  e.what() << std::endl;
+        exit(EXIT_FAILURE);
     }
 }
 
@@ -221,7 +247,9 @@ static void set_data(void)
     // a buffer to be used as float4* must be 128-bit aligned.
     // see https://rocmdocs.amd.com/en/latest/Programming_Guides/Opencl-optimization.html#using-the-cpu
     // here we use 8-byte alignment because buffer is used as float2*
-    g_particles = static_cast<real*>( _aligned_malloc(total_bytes, 8) );
+    g_particles     = static_cast<real*>( _aligned_malloc(total_bytes, 8) );
+    g_out_particles = static_cast<real*>( _aligned_malloc(total_bytes, 8) );
+    g_pin_particles = static_cast<real*>( _aligned_malloc(total_bytes, 8) );
 
     std::random_device rd;
     static std::uniform_real_distribution<real> xdis(0, 1);
@@ -232,9 +260,136 @@ static void set_data(void)
     {
         g_particles[i]   = xdis(generator);
         g_particles[i+1] = ydis(generator);
+
+        g_out_particles[i]   = 0.0f;
+        g_out_particles[i+1] = 0.0f;
+
+        g_pin_particles[i]   = 0.0f;
+        g_pin_particles[i+1] = 0.0f;
     }
 }
 
+
+static void readFileToString(const std::string filename, std::string& contents)
+{
+    std::ifstream stream(filename);
+
+    if (!stream.is_open())
+    {
+        std::cerr << "Failed to read file " << filename << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    contents = std::string(std::istreambuf_iterator<char>(stream), std::istreambuf_iterator<char>());
+
+    stream.close();
+}
+
+
+static void create_program()
+{
+    cl_int status = CL_SUCCESS;
+
+    try
+    {
+        std::string source_str;
+
+        readFileToString(g_kernel_file, source_str);
+
+        std::vector<std::string> kernel_strings{source_str};
+
+        std::vector<cl::Device> devices(1);
+        devices[0] = g_device;
+
+        g_program = cl::Program(g_context, kernel_strings, &status);
+        g_program.build(devices, "-cl-std=CL2.0");
+    }
+    catch(cl::Error& e)
+    {
+        std::cerr << "create_program() failed (" << status << ") : " << e.err() << e.what() << std::endl;
+        std::cerr << "Build status: " << g_program.getBuildInfo<CL_PROGRAM_BUILD_STATUS>(g_device) << std::endl;
+        std::cerr << "Build options: " << g_program.getBuildInfo<CL_PROGRAM_BUILD_OPTIONS>(g_device) << std::endl;
+        std::cerr << "Build log: " << g_program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(g_device) << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+
+static void create_kernel()
+{
+    cl_int status = CL_SUCCESS;
+
+    try
+    {
+        g_kernel = cl::Kernel(g_program, g_kernel_name.data(), &status);
+
+        g_kernel.setArg(0, g_particles_buf);
+        g_kernel.setArg(1, g_output_buffer);
+        g_kernel.setArg(2, g_block_size * sizeof(real2), NULL);
+    }
+    catch(cl::Error& e)
+    {
+        std::cout << "create_kernel() failed (" << status << ") : " << e.err() << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
+
+static void run_kernel()
+{
+    cl_int status = CL_SUCCESS;
+    std::vector<cl::Event> kernel_event(1);
+    cl::Event data_event;
+
+    try
+    {
+        size_t total_bytes = g_num_particles * sizeof(real2);
+
+        g_command_queue.enqueueNDRangeKernel(g_kernel,
+                                             cl::NullRange,
+                                             cl::NDRange(g_num_particles),
+                                             cl::NDRange(g_block_size),
+                                             NULL,
+                                             &kernel_event[0]);
+
+        g_command_queue.enqueueCopyBuffer(g_output_buffer,
+                                          g_pinned_output_buf,
+                                          0,
+                                          0,
+                                          total_bytes,
+                                          &kernel_event,
+                                          &data_event);
+
+    }
+    catch(cl::Error& e)
+    {
+        std::cout << "run_kernel() failed (" << status << ") : " << e.err() << e.what() << std::endl;
+        g_command_queue.finish();
+        exit(EXIT_FAILURE);
+    }
+
+    g_command_queue.finish();
+
+    cl_ulong start;
+    cl_ulong finish;
+
+    try
+    {
+        kernel_event[0].getProfilingInfo(CL_PROFILING_COMMAND_START, &start);
+        kernel_event[0].getProfilingInfo(CL_PROFILING_COMMAND_END, &finish);
+
+        std::cout << "Kernel time: " << static_cast<double>((finish - start) * 1.e-9) << std::endl;
+
+        data_event.getProfilingInfo(CL_PROFILING_COMMAND_START, &start);
+        data_event.getProfilingInfo(CL_PROFILING_COMMAND_END, &finish);
+
+        std::cout << "Data time: " << static_cast<double>((finish - start) * 1.e-9) << std::endl;
+    }
+    catch(cl::Error& e)
+    {
+        std::cout << "Failed to get profiling info (" << status << ") : " << e.err() << e.what() << std::endl;
+        exit(EXIT_FAILURE);
+    }
+}
 
 int main(int argc, char * argv[])
 {
@@ -242,16 +397,42 @@ int main(int argc, char * argv[])
     set_context();
     set_device();
     set_command_queue();
+    std::cout << "Setting data" << std::endl;
     set_data();
+    std::cout << "Setting buffers" << std::endl;
     set_buffers();
+    create_program();
+    create_kernel();
+    std::cout << "Running kernel" << std::endl;
+    run_kernel();
+    std::cout << "Done!" << std::endl;
 
-    for (int i = 0; i < 16 * 2; i += 2)
+    for (auto i = 0; i < 16 * 2; i += 2)
     {
         std::cout << g_particles[i] << ", " << g_particles[i+1] << std::endl;
     }
 
+    std::cout << "---" << std::endl;
+
+    for (auto i = 0; i < 16 * 2; i += 2)
+    {
+        std::cout << g_out_particles[i] << ", " << g_out_particles[i+1] << std::endl;
+    }
+
+    std::cout << "---" << std::endl;
+
+    // for (auto i = g_num_particles - 2; i > g_num_particles - (16 * 2); i -= 2)
+    for (auto i = 0; i < 16 * 2; i += 2)
+    {
+        std::cout << g_pin_particles[i] << ", " << g_pin_particles[i+1] << std::endl;
+    }
+
     _aligned_free(g_particles);
+    _aligned_free(g_out_particles);
+    _aligned_free(g_pin_particles);
     g_particles = nullptr;
+    g_out_particles = nullptr;
+    g_pin_particles = nullptr;
 
     return 0;
 }
