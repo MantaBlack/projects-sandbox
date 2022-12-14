@@ -3,10 +3,10 @@
 #include <CL/opencl.h>
 #include <stdio.h>
 
-#define CHECK_OPENCL_ERROR(err, msg) \
-    if(check_error(err, msg)) \
+#define CHECK_OPENCL_ERROR(status, msg) \
+    if(check_error(status, msg)) \
     { \
-        fprintf_s(stderr, "\nStatus: %d\n", err); \
+        fprintf_s(stderr, "\nStatus: %d\n", status); \
         fprintf_s(stderr, "Location : %s:%d\n", __FILE__, __LINE__ ); \
         exit(EXIT_FAILURE); \
     }
@@ -20,6 +20,16 @@
 #define PRINT_PLATFORM_INFO(info_type, info_name) \
     { \
         print_platform_string_info( info_type, info_name ); \
+    }
+
+#define PRINT_DEVICE_INFO(info_type, info_name) \
+    { \
+        print_device_info( info_type, info_name ); \
+    }
+
+#define PRINT_MSG(msg) \
+    { \
+        fprintf_s(stdout, "\n%s\n", msg); \
     }
 
 
@@ -39,6 +49,8 @@ static cl_kernel        g_kernel;
 static cl_mem           in_buffer_a;
 static cl_mem           in_buffer_b;
 static cl_mem           out_buffer;
+
+static size_t           g_num_ctx_devices;
 
 static int check_error(cl_int err, const char* msg)
 {
@@ -87,8 +99,46 @@ static void print_platform_string_info(const cl_int info_type, const char* info_
     free(param_buf);
 }
 
+static void print_device_info(const cl_int info_type, const char* info_name)
+{
+    cl_int status      = CL_SUCCESS;
+    size_t param_value = 0;
+
+    status = clGetDeviceInfo(g_device,
+                             (cl_device_info) info_type,
+                             sizeof(size_t),
+                             &param_value,
+                             NULL);
+    CHECK_OPENCL_ERROR(status, "clGetDeviceInfo() failed");
+
+    if (info_type == CL_DEVICE_SVM_CAPABILITIES)
+    {
+        fprintf_s(stdout,
+                  "Device SVM coarse grain : %s\n",
+                  (param_value & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER) ? "Yes" : "No" );
+    
+        fprintf_s(stdout,
+                  "Device SVM fine grain buffer : %s\n",
+                  (param_value & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) ? "Yes" : "No" );
+    
+        fprintf_s(stdout,
+                  "Device SVM fine grain system : %s\n",
+                  (param_value & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM) ? "Yes" : "No" );
+    
+        fprintf_s(stdout,
+                  "Device SVM atomics : %s\n",
+                  (param_value & CL_DEVICE_SVM_ATOMICS) ? "Yes" : "No" );
+    }
+    else
+    {
+        fprintf_s(stdout, "%s : %d\n", info_name, param_value);
+    }
+}
+
 static cl_int set_platform(void)
 {
+    PRINT_MSG("Setting platform . . .");
+
     cl_int status         = CL_SUCCESS;
     cl_uint num_platforms = 0;
 
@@ -102,7 +152,7 @@ static cl_int set_platform(void)
     }
     else
     {
-        fprintf_s(stdout, "Found %d platform(s).\n", num_platforms);
+        fprintf_s(stdout, "Platform(s) found : %d.\n", num_platforms);
     }
 
     cl_platform_id platforms[num_platforms];
@@ -116,6 +166,82 @@ static cl_int set_platform(void)
     PRINT_PLATFORM_INFO(CL_PLATFORM_NAME, "Platform name");
     PRINT_PLATFORM_INFO(CL_PLATFORM_VENDOR, "Platform vendor");
     PRINT_PLATFORM_INFO(CL_PLATFORM_PROFILE, "Platform profile");
+    PRINT_PLATFORM_INFO(CL_PLATFORM_VERSION, "Platform version");
+
+    return status;
+}
+
+static cl_int set_context(void)
+{
+    PRINT_MSG("Setting context . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    cl_context_properties props[3] = 
+    {
+        CL_CONTEXT_PLATFORM,
+        (cl_context_properties) g_platform,
+        0
+    };
+
+    g_context = clCreateContextFromType(props,
+                                        DEVICE_TYPE,
+                                        NULL,
+                                        NULL,
+                                        &status);
+    CHECK_OPENCL_ERROR(status, "clCreateContextFromType() failed");
+
+    status = clGetContextInfo(g_context,
+                              CL_CONTEXT_NUM_DEVICES,
+                              sizeof(g_num_ctx_devices),
+                              &g_num_ctx_devices,
+                              NULL);
+    CHECK_OPENCL_ERROR(status, "clGetContextInfo() failed");
+
+    fprintf_s(stdout, "# Devices in context : %d\n", g_num_ctx_devices);
+
+    return status;
+}
+
+static cl_int set_device(void)
+{
+    PRINT_MSG("Setting device . . .");
+
+    cl_int status = CL_SUCCESS;
+    cl_device_id devices[g_num_ctx_devices];
+
+    status = clGetContextInfo(g_context,
+                              CL_CONTEXT_DEVICES,
+                              sizeof(devices),
+                              devices,
+                              NULL);
+    CHECK_OPENCL_ERROR(status, "clGetContextInfo() failed");
+
+    g_device = devices[0];
+
+    char device_name[256];
+
+#ifdef CL_DEVICE_BOARD_NAME_AMD
+    status = clGetDeviceInfo(g_device,
+                             CL_DEVICE_BOARD_NAME_AMD,
+                             sizeof(device_name),
+                             device_name,
+                             NULL);
+#else
+    status = clGetDeviceInfo(g_device,
+                             CL_DEVICE_NAME,
+                             sizeof(device_name),
+                             device_name,
+                             NULL);
+#endif
+
+    CHECK_OPENCL_ERROR(status, "clGetDeviceInfo() failed");
+
+    fprintf_s(stdout, "Device name : %s\n", device_name);
+
+    PRINT_DEVICE_INFO(CL_DEVICE_MAX_COMPUTE_UNITS, "Max compute units");
+    PRINT_DEVICE_INFO(CL_DEVICE_MAX_WORK_GROUP_SIZE, "Max work group");
+    PRINT_DEVICE_INFO(CL_DEVICE_SVM_CAPABILITIES, "");
 
     return status;
 }
@@ -127,6 +253,12 @@ int main(int argc, char const *argv[])
 
     status = set_platform();
     CHECK_OPENCL_ERROR(status, "set_platform() failed");
+
+    status = set_context();
+    CHECK_OPENCL_ERROR(status, "set_context() failed");
+
+    status = set_device();
+    CHECK_OPENCL_ERROR(status, "set_device() failed");
 
     return 0;
 }
