@@ -8,9 +8,25 @@
 #include <cstdlib>
 #include <random>
 #include <fstream>
+#include <limits>   //std::numeric_limits
+#include <cmath>    //std::fabs
+#include <locale>   //std::locale, std::numpunct, std::use_facet
 
 using real  = cl_float;
 using real2 = cl_float2;
+
+struct space_out : std::numpunct<char>
+{
+    char do_thousands_sep() const
+    {
+        return ' ';
+    }
+
+    std::string do_grouping() const
+    {
+        return "\03";
+    }
+};
 
 static cl_device_type g_device_type = CL_DEVICE_TYPE_GPU;
 const  size_t g_block_size = 256u;
@@ -24,16 +40,24 @@ static cl::Buffer       g_output_buffer;
 static cl::Program      g_program;
 static cl::Kernel       g_kernel;
 
-static cl_uint g_num_particles = 60 * 256;
+static cl_uint g_num_particles = 60 * 256 * 256;
 static real*   g_particles     = nullptr;
 static real*   g_out_particles = nullptr;
 static real*   g_pin_particles = nullptr;
+
+static std::vector<real2> g_host_particles(g_num_particles);
 
 static cl::Buffer g_particles_buf;
 static cl::Buffer g_pinned_output_buf;
 
 static std::string g_kernel_file("kernel_file.cl");
 static std::string g_kernel_name("test_kernel");
+
+static bool is_close(real a, real b)
+{
+    // return std::fabs(a - b) < std::numeric_limits<T>::epsilon();
+    return std::fabs(a - b) < std::numeric_limits<real>::epsilon();
+}
 
 static void set_platform(void)
 {
@@ -134,11 +158,19 @@ static void set_device()
                 std::cout << "   Dim[" << i << "]: " << wi_dims[i] << std::endl;
             }
 
+            cl_device_svm_capabilities svm = (*itr).getInfo<CL_DEVICE_SVM_CAPABILITIES>();
+            std::cout << "Device SVM coarse grain : " << ( (svm & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER) ? "Yes" : "No") << std::endl;
+            std::cout << "Device SVM fine grain buffer : " << ( (svm & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) ? "Yes" : "No") << std::endl;
+            std::cout << "Device SVM fine grain system : " << ( (svm & CL_DEVICE_SVM_FINE_GRAIN_SYSTEM) ? "Yes" : "No") << std::endl;
+            std::cout << "Device SVM atomics : " << ( (svm & CL_DEVICE_SVM_ATOMICS) ? "Yes" : "No") << std::endl;
+
             if ((*itr).getInfo<CL_DEVICE_TYPE>() == g_device_type)
             {
                 std::cout << "Found matching device type" << std::endl;
                 g_device = *itr;
             }
+
+            std::cout << std::endl;
         }
     }
     catch(cl::Error& e)
@@ -391,14 +423,56 @@ static void run_kernel()
     }
 }
 
+
+static void run_host_kernel()
+{
+    real2* particles = reinterpret_cast<real2*>(g_particles);
+
+    for(auto i = 0u; i < g_num_particles; ++i)
+    {
+        auto idx = (g_num_particles - 1) - i;
+
+        g_host_particles[i] = particles[idx];
+    }
+}
+
+static void verify_results()
+{
+    real2* device_results = reinterpret_cast<real2*>(g_pin_particles);
+
+    for(auto i = 0; i < g_num_particles; ++i)
+    {
+        if ( !is_close(device_results[i].s[0], g_host_particles[i].s[0]) ||
+             !is_close(device_results[i].s[1], g_host_particles[i].s[1]) )
+        {
+            std::cerr << "Verification result: FAIL" << std::endl;
+            return;
+        }
+    }
+
+    std::cerr << "Verification result: PASS" << std::endl;
+}
+
+
 int main(int argc, char * argv[])
 {
+    std::cout.imbue(std::locale(std::cout.getloc(), new space_out));
+
+    std::cout << "# particles: " << g_num_particles << std::endl;
+
+#ifndef HOST_ONLY
     set_platform();
     set_context();
     set_device();
     set_command_queue();
+#endif
+
     std::cout << "Setting data" << std::endl;
     set_data();
+
+    run_host_kernel();
+
+#ifndef HOST_ONLY
     std::cout << "Setting buffers" << std::endl;
     set_buffers();
     create_program();
@@ -407,25 +481,8 @@ int main(int argc, char * argv[])
     run_kernel();
     std::cout << "Done!" << std::endl;
 
-    for (auto i = 0; i < 16 * 2; i += 2)
-    {
-        std::cout << g_particles[i] << ", " << g_particles[i+1] << std::endl;
-    }
-
-    std::cout << "---" << std::endl;
-
-    for (auto i = 0; i < 16 * 2; i += 2)
-    {
-        std::cout << g_out_particles[i] << ", " << g_out_particles[i+1] << std::endl;
-    }
-
-    std::cout << "---" << std::endl;
-
-    // for (auto i = g_num_particles - 2; i > g_num_particles - (16 * 2); i -= 2)
-    for (auto i = 0; i < 16 * 2; i += 2)
-    {
-        std::cout << g_pin_particles[i] << ", " << g_pin_particles[i+1] << std::endl;
-    }
+    verify_results();
+#endif
 
     _aligned_free(g_particles);
     _aligned_free(g_out_particles);

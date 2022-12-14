@@ -18,7 +18,7 @@ int main()
 
     sf::Font font;
 
-    if (!font.loadFromFile("/usr/share/fonts/truetype/ubuntu/UbuntuMono-R.ttf"))
+    if (!font.loadFromFile("saxmono.ttf"))
     {
         std::cerr << "Failed to load font" << std::endl;
         return 1;
