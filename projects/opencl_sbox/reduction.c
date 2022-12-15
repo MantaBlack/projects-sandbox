@@ -67,6 +67,36 @@ static cl_int2*         g_host_output     = NULL;
 
 static size_t           g_num_ctx_devices;
 
+
+static char* read_file_to_string(char* contents, const char* filename)
+{
+    size_t length = 0;
+    FILE* f = fopen(filename, "rb");
+    free(contents);
+    contents = NULL;
+
+    if (f)
+    {
+        fseek(f, 0, SEEK_END); // go to end of file
+        // since file is open in binary mode, this is the number of bytes
+        // from the beginning of the file
+        length = ftell(f);
+        fseek(f, 0, SEEK_SET); // go to beginning of file
+
+        contents = (char*)  malloc(length + 1);
+        CHECK_NULL(contents, "malloc() failed");
+
+        contents[length] = '\0';
+
+        fread(contents, 1, length, f);
+
+        fclose(f);
+
+    }
+
+    return contents;
+}
+
 static int check_error(cl_int err, const char* msg)
 {
     if (err != CL_SUCCESS)
@@ -437,6 +467,19 @@ static cl_int set_data(void)
     return status;
 }
 
+static cl_int set_program(void)
+{
+    PRINT_MSG("Setting program . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    char* program_source = NULL;
+    program_source = read_file_to_string(program_source, KERNEL_FILE);
+    CHECK_NULL(program_source, "read_file_to_string() failed");
+    fprintf_s(stdout, "\n%s\n", program_source);
+
+    return status;
+}
 
 int main(int argc, char const *argv[])
 {
@@ -461,6 +504,9 @@ int main(int argc, char const *argv[])
 
     status = set_data();
     CHECK_OPENCL_ERROR(status, "set_data() failed");
+
+    status = set_program();
+    CHECK_OPENCL_ERROR(status, "set_program() failed");
 
     clSVMFree(g_context, g_in_svm_elemets_a);
     clSVMFree(g_context, g_in_svm_elemets_b);
