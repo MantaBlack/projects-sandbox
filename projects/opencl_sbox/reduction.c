@@ -49,7 +49,7 @@
 
 
 const size_t         BLOCK_SIZE   = 256u;
-const size_t         NUM_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE;
+const size_t         NUM_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE * BLOCK_SIZE;
 const cl_device_type DEVICE_TYPE  = CL_DEVICE_TYPE_GPU;
 const char*          KERNEL_FILE  = "reduction.cl";
 const char*          KERNEL_NAME  = "do_reduction";
@@ -65,10 +65,7 @@ static cl_kernel        g_kernel;
 static cl_int2*         g_in_svm_elemets_a = NULL;
 static cl_int2*         g_in_svm_elemets_b = NULL;
 static cl_int2*         g_out_svm_buffer   = NULL;
-
-static cl_int2*         g_host_elements_a = NULL;
-static cl_int2*         g_host_elements_b = NULL;
-static cl_int2*         g_host_output     = NULL;
+static cl_int2*         g_host_output      = NULL;
 
 static size_t           g_num_ctx_devices;
 
@@ -417,25 +414,16 @@ static cl_int set_data(void)
     CHECK_OPENCL_ERROR(status, "clFinish() failed");
 
     // allocate memory for host kernel
-    g_host_elements_a = (cl_int2*) malloc(size_bytes);
-    CHECK_NULL(g_host_elements_a, "malloc() failed");
-
-    g_host_elements_b = (cl_int2*) malloc(size_bytes);
-    CHECK_NULL(g_host_elements_b, "malloc() failed");
-
     g_host_output = (cl_int2*) malloc(size_bytes);
     CHECK_NULL(g_host_output, "malloc() failed");
 
     size_t i = 0;
-    cl_int4 avg = {0};
+    cl_ulong4 avg = {0};
 
     for (i = 0; i < NUM_ELEMENTS; ++i)
     {
         g_in_svm_elemets_a[i] = (cl_int2){ {rand(), rand()} };
         g_in_svm_elemets_b[i] = (cl_int2){ {rand(), rand()} };
-
-        g_host_elements_a[i] = g_in_svm_elemets_a[i];
-        g_host_elements_b[i] = g_in_svm_elemets_b[i];
 
         g_host_output[i] = (cl_int2){0};
 
@@ -536,14 +524,212 @@ static cl_int set_program(void)
 
         fprintf_s(stdout, RED "Build status : %d\n" RESET, build_status);
         fprintf_s(stdout, RED "Build Log : \n%s\n" RESET, build_log);
+
+        free(build_log);
     }
     else
     {
         CHECK_OPENCL_ERROR(status, "clBuildProgram() failed");
     }
 
+    free(program_source);
+
     return status;
 }
+
+static cl_int set_kernel(void)
+{
+    PRINT_MSG("Setting kernel . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    g_kernel = clCreateKernel(g_program,
+                              KERNEL_NAME,
+                              &status);
+    CHECK_OPENCL_ERROR(status, "clCreateKernel() failed");
+
+    status = clSetKernelArgSVMPointer(g_kernel,
+                                      0,
+                                      g_in_svm_elemets_a);
+    CHECK_OPENCL_ERROR(status, "clSetKernelArg() failed");
+
+    status = clSetKernelArgSVMPointer(g_kernel,
+                                      1,
+                                      g_in_svm_elemets_b);
+    CHECK_OPENCL_ERROR(status, "clSetKernelArg() failed");
+
+    status = clSetKernelArgSVMPointer(g_kernel,
+                                      2,
+                                      g_out_svm_buffer);
+    CHECK_OPENCL_ERROR(status, "clSetKernelArg() failed");
+
+    status = clSetKernelArg(g_kernel,
+                            3,
+                            BLOCK_SIZE * sizeof(cl_int2),
+                            NULL);
+    CHECK_OPENCL_ERROR(status, "clSetKernelArg() failed");
+
+    return status;
+}
+
+static cl_int run_kernel(void)
+{
+    PRINT_MSG("Running kernel . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    // fix warning for variable length array
+    enum { WORK_DIM = 1};
+
+    // const cl_uint work_dim = 1;
+    const size_t global_work_size[WORK_DIM] = {NUM_ELEMENTS};
+    const size_t local_work_size[WORK_DIM]  = {BLOCK_SIZE};
+    cl_event run_event;
+
+    status = clEnqueueNDRangeKernel(g_command_queue,
+                                    g_kernel,
+                                    WORK_DIM,
+                                    NULL,
+                                    global_work_size,
+                                    local_work_size,
+                                    0,
+                                    NULL,
+                                    &run_event);
+    CHECK_OPENCL_ERROR(status, "clEnqueueNDRangeKernel() failed");
+
+    // synchronization point
+    status = clFinish(g_command_queue);
+    CHECK_OPENCL_ERROR(status, "clFinish() failed");
+
+    cl_ulong cmd_start = 0;
+    status = clGetEventProfilingInfo(run_event,
+                                     CL_PROFILING_COMMAND_START,
+                                     sizeof(size_t),
+                                     &cmd_start,
+                                     NULL);
+    CHECK_OPENCL_ERROR(status, "clGetEventProfilingInfo() failed");
+
+    cl_ulong cmd_end = 0;
+    status = clGetEventProfilingInfo(run_event,
+                                     CL_PROFILING_COMMAND_END,
+                                     sizeof(size_t),
+                                     &cmd_end,
+                                     NULL);
+    CHECK_OPENCL_ERROR(status, "clGetEventProfilingInfo() failed");
+
+    fprintf_s(stdout, "Kernel time : %.3g ms\n", (cmd_end - cmd_start) * 1e-6);
+
+    return status;
+}
+
+static cl_int run_host_kernel(void)
+{
+    PRINT_MSG("Running host kernel . . .");
+
+    cl_int status = CL_SUCCESS;
+    const size_t size_bytes = NUM_ELEMENTS * sizeof(cl_int2);
+
+    status = clEnqueueSVMMap(g_command_queue,
+                             CL_FALSE,
+                             CL_MAP_READ,
+                             g_in_svm_elemets_a,
+                             size_bytes,
+                             0,
+                             NULL,
+                             NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMMap() failed for g_in_svm_elemets_a");
+
+    status = clEnqueueSVMMap(g_command_queue,
+                             CL_FALSE,
+                             CL_MAP_READ,
+                             g_in_svm_elemets_b,
+                             size_bytes,
+                             0,
+                             NULL,
+                             NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMMap() failed for g_in_svm_elemets_b");
+
+    status = clEnqueueSVMMap(g_command_queue,
+                             CL_FALSE,
+                             CL_MAP_READ,
+                             g_out_svm_buffer,
+                             size_bytes,
+                             0,
+                             NULL,
+                             NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMMap() failed for g_out_svm_buffer");
+
+    // sync point
+    status = clFinish(g_command_queue);
+    CHECK_OPENCL_ERROR(status, "clFinish() failed");
+
+    size_t i = 0;
+
+    for (i = 0; i < NUM_ELEMENTS; ++i)
+    {
+        g_host_output[i].s[0] = g_in_svm_elemets_a[i].s[0] + g_in_svm_elemets_b[i].s[0];
+        g_host_output[i].s[1] = g_in_svm_elemets_a[i].s[1] + g_in_svm_elemets_b[i].s[1];
+    }
+
+    cl_bool failed = CL_FALSE;
+
+    // verify results
+    for (i = 0; i < NUM_ELEMENTS; ++i)
+    {
+        if (g_host_output[i].s[0] != g_out_svm_buffer[i].s[0] ||
+            g_host_output[i].s[1] != g_out_svm_buffer[i].s[1])
+        {
+            failed = CL_TRUE;
+            break;
+        }
+    }
+    
+    if (failed)
+    {
+        fprintf_s(stderr, "Verification result : FAIL\n");
+    }
+    else
+    {
+        fprintf_s(stderr, "Verification result : PASS\n");
+    }
+
+    status = clEnqueueSVMUnmap(g_command_queue,
+                               g_in_svm_elemets_a,
+                               0,
+                               NULL,
+                               NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMUnmap() failed for g_in_svm_elemets_a");
+
+    status = clEnqueueSVMUnmap(g_command_queue,
+                               g_in_svm_elemets_b,
+                               0,
+                               NULL,
+                               NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMUnmap() failed for g_in_svm_elemets_b");
+
+    status = clEnqueueSVMUnmap(g_command_queue,
+                               g_out_svm_buffer,
+                               0,
+                               NULL,
+                               NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMUnmap() failed for g_out_svm_buffer");
+
+    // sync point
+    status = clFinish(g_command_queue);
+    CHECK_OPENCL_ERROR(status, "clFinish() failed");
+
+    return status;
+}
+
+static void free_svm_buffers(void)
+{
+    PRINT_MSG("Freeing SVM buffers . . .");
+
+    clSVMFree(g_context, g_in_svm_elemets_a);
+    clSVMFree(g_context, g_in_svm_elemets_b);
+    clSVMFree(g_context, g_out_svm_buffer);
+}
+
 
 int main(int argc, char const *argv[])
 {
@@ -572,12 +758,17 @@ int main(int argc, char const *argv[])
     status = set_program();
     CHECK_OPENCL_ERROR(status, "set_program() failed");
 
-    clSVMFree(g_context, g_in_svm_elemets_a);
-    clSVMFree(g_context, g_in_svm_elemets_b);
-    clSVMFree(g_context, g_out_svm_buffer);
+    status = set_kernel();
+    CHECK_OPENCL_ERROR(status, "set_kernel() failed");
 
-    free(g_host_elements_a);
-    free(g_host_elements_b);
+    status = run_kernel();
+    CHECK_OPENCL_ERROR(status, "run_kernel() failed");
+
+    status = run_host_kernel();
+    CHECK_OPENCL_ERROR(status, "run_host_kernel() failed");
+
+    free_svm_buffers();
+
     free(g_host_output);
 
     return 0;
