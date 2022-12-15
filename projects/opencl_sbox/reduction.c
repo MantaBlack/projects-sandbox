@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <profileapi.h>
+#include <locale.h>
 
 #define RED   "\x1B[31m"
 #define GRN   "\x1B[32m"
@@ -618,7 +619,7 @@ static cl_int run_kernel(void)
                                      NULL);
     CHECK_OPENCL_ERROR(status, "clGetEventProfilingInfo() failed");
 
-    fprintf_s(stdout, "Kernel time : %.3g ms\n", (cmd_end - cmd_start) * 1e-6);
+    fprintf_s(stdout, "Kernel time : %5.3g milliseconds\n", (cmd_end - cmd_start) / 1.0e6);
 
     return status;
 }
@@ -667,9 +668,12 @@ static cl_int run_host_kernel(void)
     size_t i = 0;
     LARGE_INTEGER start = {0};
     LARGE_INTEGER end   = {0};
-    WINBOOL query_fail  = 1;
+    LARGE_INTEGER freq  = {0};
+    WINBOOL query_ok    = 1;
 
-    query_fail = QueryPerformanceCounter(&start);
+    query_ok = QueryPerformanceFrequency(&freq);
+
+    query_ok = QueryPerformanceCounter(&start) && query_ok;
 
     for (i = 0; i < NUM_ELEMENTS; ++i)
     {
@@ -677,8 +681,27 @@ static cl_int run_host_kernel(void)
         g_host_output[i].s[1] = g_in_svm_elemets_a[i].s[1] + g_in_svm_elemets_b[i].s[1];
     }
 
-    query_fail = QueryPerformanceCounter(&end) && query_fail;
-    fprintf_s(stdout, "%s", query_fail ? "True" : "False");
+    query_ok = QueryPerformanceCounter(&end) && query_ok;
+
+    if (query_ok)
+    {
+        LARGE_INTEGER elapsed = {0};
+        elapsed.QuadPart = end.QuadPart - start.QuadPart;
+
+        /**
+         * We now have the elapsed number of ticks, along with the
+         * number of ticks-per-second. We use these values
+         * to convert to the number of elapsed microseconds.
+         * To guard against loss-of-precision, we convert
+         * to microseconds *before* dividing by ticks-per-second.
+         * https://learn.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+         */
+
+        elapsed.QuadPart *= 1.0e3; // in milliseconds
+        elapsed.QuadPart /= freq.QuadPart;
+
+        fprintf_s(stdout, "Host kernel time : %5.3g milliseconds\n", (double)elapsed.QuadPart);
+    }
 
     cl_bool failed = CL_FALSE;
 
@@ -743,6 +766,8 @@ static void free_svm_buffers(void)
 int main(int argc, char const *argv[])
 {
     cl_int status = CL_SUCCESS;
+
+    // setlocale(LC_ALL, "nl-NL");
 
     srand(time(NULL));
 
