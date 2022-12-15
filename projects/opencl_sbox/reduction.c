@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#include <profileapi.h>
 
 #define RED   "\x1B[31m"
 #define GRN   "\x1B[32m"
@@ -664,12 +665,20 @@ static cl_int run_host_kernel(void)
     CHECK_OPENCL_ERROR(status, "clFinish() failed");
 
     size_t i = 0;
+    LARGE_INTEGER start = {0};
+    LARGE_INTEGER end   = {0};
+    WINBOOL query_fail  = 1;
+
+    query_fail = QueryPerformanceCounter(&start);
 
     for (i = 0; i < NUM_ELEMENTS; ++i)
     {
         g_host_output[i].s[0] = g_in_svm_elemets_a[i].s[0] + g_in_svm_elemets_b[i].s[0];
         g_host_output[i].s[1] = g_in_svm_elemets_a[i].s[1] + g_in_svm_elemets_b[i].s[1];
     }
+
+    query_fail = QueryPerformanceCounter(&end) && query_fail;
+    fprintf_s(stdout, "%s", query_fail ? "True" : "False");
 
     cl_bool failed = CL_FALSE;
 
