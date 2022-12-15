@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define RED   "\x1B[31m"
+#define GRN   "\x1B[32m"
+#define RESET "\x1B[0m"
+
 #define CHECK_OPENCL_ERROR(status, msg) \
     if(check_error(status, msg)) \
     { \
@@ -49,6 +53,7 @@ const size_t         NUM_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE;
 const cl_device_type DEVICE_TYPE  = CL_DEVICE_TYPE_GPU;
 const char*          KERNEL_FILE  = "reduction.cl";
 const char*          KERNEL_NAME  = "do_reduction";
+const char*          BUILD_OPTS   = "-Werror -cl-std=CL2.0";
 
 static cl_platform_id   g_platform;
 static cl_context       g_context;
@@ -68,9 +73,9 @@ static cl_int2*         g_host_output     = NULL;
 static size_t           g_num_ctx_devices;
 
 
-static char* read_file_to_string(char* contents, const char* filename)
+static char* read_file_to_string(char* contents, const char* filename, size_t* length)
 {
-    size_t length = 0;
+    *length = 0;
     FILE* f = fopen(filename, "rb");
     free(contents);
     contents = NULL;
@@ -80,15 +85,15 @@ static char* read_file_to_string(char* contents, const char* filename)
         fseek(f, 0, SEEK_END); // go to end of file
         // since file is open in binary mode, this is the number of bytes
         // from the beginning of the file
-        length = ftell(f);
+        *length = ftell(f);
         fseek(f, 0, SEEK_SET); // go to beginning of file
 
-        contents = (char*)  malloc(length + 1);
+        contents = (char*)  malloc(*length + 1);
         CHECK_NULL(contents, "malloc() failed");
 
-        contents[length] = '\0';
+        contents[*length] = '\0';
 
-        fread(contents, 1, length, f);
+        fread(contents, 1, *length, f);
 
         fclose(f);
 
@@ -473,10 +478,69 @@ static cl_int set_program(void)
 
     cl_int status = CL_SUCCESS;
 
+    size_t length        = 0;
     char* program_source = NULL;
-    program_source = read_file_to_string(program_source, KERNEL_FILE);
+
+    program_source = read_file_to_string(program_source, KERNEL_FILE, &length);
     CHECK_NULL(program_source, "read_file_to_string() failed");
-    fprintf_s(stdout, "\n%s\n", program_source);
+
+    fprintf_s(stdout, GRN "\n%s\n" RESET, program_source);
+
+    g_program = clCreateProgramWithSource(g_context,
+                                          1u,
+                                          (const char **)(&program_source),
+                                          &length,
+                                          &status);
+    CHECK_OPENCL_ERROR(status, "clCreateProgramWithSource() failed");
+
+    status = clBuildProgram(g_program,
+                            1u,
+                            &g_device,
+                            BUILD_OPTS,
+                            NULL,
+                            NULL);
+
+    if (status == CL_BUILD_PROGRAM_FAILURE)
+    {
+        cl_build_status build_status = CL_BUILD_NONE;
+
+        status = clGetProgramBuildInfo(g_program,
+                                       g_device,
+                                       CL_PROGRAM_BUILD_STATUS,
+                                       sizeof(build_status),
+                                       &build_status,
+                                       NULL);
+        CHECK_OPENCL_ERROR(status, "clGetProgramBuildInfo() failed");
+
+        size_t build_log_size = 0;
+        char*  build_log      = NULL;
+
+        status = clGetProgramBuildInfo(g_program,
+                                       g_device,
+                                       CL_PROGRAM_BUILD_LOG,
+                                       sizeof(char),
+                                       NULL,
+                                       &build_log_size);
+        CHECK_OPENCL_ERROR(status, "clGetProgramBuildInfo failed");
+
+        build_log = (char*) malloc(build_log_size);
+        CHECK_NULL(build_log, "malloc failed");
+
+        status = clGetProgramBuildInfo(g_program,
+                                       g_device,
+                                       CL_PROGRAM_BUILD_LOG,
+                                       build_log_size,
+                                       build_log,
+                                       NULL);
+        CHECK_OPENCL_ERROR(status, "clGetProgramBuildInfo failed");
+
+        fprintf_s(stdout, RED "Build status : %d\n" RESET, build_status);
+        fprintf_s(stdout, RED "Build Log : \n%s\n" RESET, build_log);
+    }
+    else
+    {
+        CHECK_OPENCL_ERROR(status, "clBuildProgram() failed");
+    }
 
     return status;
 }
