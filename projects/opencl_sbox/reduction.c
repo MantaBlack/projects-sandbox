@@ -2,6 +2,8 @@
 
 #include <CL/opencl.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
 #define CHECK_OPENCL_ERROR(status, msg) \
     if(check_error(status, msg)) \
@@ -32,9 +34,23 @@
         fprintf_s(stdout, "\n%s\n", msg); \
     }
 
+#define MAX(a, b) \
+    ({ \
+        __typeof__ (a) _a = (a); \
+        __typeof__ (a) _b = (b); \
+        _a > _b ? _a : _b; \
+    })
 
-const cl_uint        BLOCK_SIZE   = 256u;
-const cl_uint        NUM_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE;
+#define MIN(a, b) \
+    ({ \
+        __typeof__ (a) _a = (a); \
+        __typeof__ (a) _b = (b); \
+        _a < _b ? _a : _b; \
+    })
+
+
+const size_t         BLOCK_SIZE   = 256u;
+const size_t         NUM_ELEMENTS = BLOCK_SIZE * BLOCK_SIZE;
 const cl_device_type DEVICE_TYPE  = CL_DEVICE_TYPE_GPU;
 const char*          KERNEL_FILE  = "reduction.cl";
 const char*          KERNEL_NAME  = "do_reduction";
@@ -46,9 +62,9 @@ static cl_command_queue g_command_queue;
 static cl_program       g_program;
 static cl_kernel        g_kernel;
 
-static cl_mem           in_buffer_a;
-static cl_mem           in_buffer_b;
-static cl_mem           out_buffer;
+static cl_int2*         g_in_svm_elemets_a = NULL;
+static cl_int2*         g_in_svm_elemets_b = NULL;
+static cl_int2*         g_out_svm_buffer   = NULL;
 
 static size_t           g_num_ctx_devices;
 
@@ -116,7 +132,7 @@ static void print_device_info(const cl_int info_type, const char* info_name)
         fprintf_s(stdout,
                   "Device SVM coarse grain : %s\n",
                   (param_value & CL_DEVICE_SVM_COARSE_GRAIN_BUFFER) ? "Yes" : "No" );
-    
+
         fprintf_s(stdout,
                   "Device SVM fine grain buffer : %s\n",
                   (param_value & CL_DEVICE_SVM_FINE_GRAIN_BUFFER) ? "Yes" : "No" );
@@ -246,10 +262,179 @@ static cl_int set_device(void)
     return status;
 }
 
+static cl_int set_command_queue(void)
+/**
+ * Having multiple command-queues allows applications to queue multiple
+ * independent commands without requiring synchronization. Note that this should
+ * work as long as these objects are not being shared. Sharing of objects across
+ * multiple command-queues will require the application to perform appropriate
+ * synchronization. (opencl-2.1.pdf, 5.1)
+ */
+{
+    PRINT_MSG("Setting command queue . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    cl_queue_properties props[3] = 
+    {
+        CL_QUEUE_PROPERTIES,
+        CL_QUEUE_PROFILING_ENABLE,
+        0
+    };
+
+    g_command_queue = clCreateCommandQueueWithProperties(g_context,
+                                                         g_device,
+                                                         props,
+                                                         &status);
+    CHECK_OPENCL_ERROR(status, "clCreateCommandQueueWithProperties() failed");
+
+    return status;
+}
+
+static cl_int set_svm_buffers(void)
+{
+    PRINT_MSG("Setting SVM buffers . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    const size_t size_bytes = NUM_ELEMENTS * sizeof(cl_int2);
+    const cl_uint alignment = sizeof(cl_int2);
+
+    g_in_svm_elemets_a = (cl_int2*) clSVMAlloc(g_context,
+                                              CL_MEM_READ_ONLY,
+                                              size_bytes,
+                                              alignment);
+
+    if (g_in_svm_elemets_a == NULL)
+    {
+        LOG_ERROR("clSVMAlloc() failed for g_in_svm_elemets_a");
+    }
+
+    g_in_svm_elemets_b = (cl_int2*) clSVMAlloc(g_context,
+                                              CL_MEM_READ_ONLY,
+                                              size_bytes,
+                                              alignment);
+
+    if (g_in_svm_elemets_b == NULL)
+    {
+        LOG_ERROR("clSVMAlloc() failed for g_in_svm_elemets_b");
+    }
+
+    g_out_svm_buffer = (cl_int2*) clSVMAlloc(g_context,
+                                             CL_MEM_WRITE_ONLY,
+                                             size_bytes,
+                                             alignment);
+
+    if (g_out_svm_buffer == NULL)
+    {
+        LOG_ERROR("clSVMAlloc() failed for g_out_svm_buffer");
+    }
+
+    fprintf_s(stdout, "SVM buffers allocated : %u Bytes\n", size_bytes);
+
+    return status;
+}
+
+static cl_int set_data(void)
+{
+    PRINT_MSG("Setting data . . .");
+
+    cl_int status = CL_SUCCESS;
+
+    const size_t size_bytes = NUM_ELEMENTS * sizeof(cl_int2);
+
+    // map first input buffer for writing. non-blocking map
+    status = clEnqueueSVMMap(g_command_queue,
+                             CL_FALSE,
+                             CL_MAP_WRITE,
+                             g_in_svm_elemets_a,
+                             size_bytes,
+                             0,
+                             NULL,
+                             NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMMap() failed for g_in_svm_elemets_a");
+
+    // map second input buffer for writing. non-blocking map
+    status = clEnqueueSVMMap(g_command_queue,
+                             CL_FALSE,
+                             CL_MAP_WRITE,
+                             g_in_svm_elemets_b,
+                             size_bytes,
+                             0,
+                             NULL,
+                             NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMMap() failed for g_in_svm_elemets_b");
+
+    // fill the output buffer with zeros
+    cl_int2 pattern = {0};
+
+    status = clEnqueueSVMMemFill(g_command_queue,
+                                 g_out_svm_buffer,
+                                 &pattern,
+                                 sizeof(cl_int2),
+                                 size_bytes,
+                                 0,
+                                 NULL,
+                                 NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMMemFill() failed for g_out_svm_buffer");
+
+    // issue any outstanding commands for the queue
+    clFlush(g_command_queue);
+
+    // block and wait for all previously queued commands to complete
+    status = clFinish(g_command_queue);
+    CHECK_OPENCL_ERROR(status, "clFinish() failed");
+
+    size_t i = 0;
+    cl_int4 avg = {0};
+
+    for (i = 0; i < NUM_ELEMENTS; ++i)
+    {
+        g_in_svm_elemets_a[i].s[0] = rand();
+        g_in_svm_elemets_a[i].s[1] = rand();
+
+        g_in_svm_elemets_b[i].s[0] = rand();
+        g_in_svm_elemets_b[i].s[1] = rand();
+
+        avg.s[0] += g_in_svm_elemets_a[i].s[0];
+        avg.s[1] += g_in_svm_elemets_a[i].s[1];
+        avg.s[2] += g_in_svm_elemets_b[i].s[0];
+        avg.s[3] += g_in_svm_elemets_b[i].s[1];
+    }
+
+    // unmap buffers indicating that updates are completed by host
+    status = clEnqueueSVMUnmap(g_command_queue,
+                               g_in_svm_elemets_a,
+                               0,
+                               NULL,
+                               NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMUnmap() failed for g_in_svm_elemets_a");
+
+    status = clEnqueueSVMUnmap(g_command_queue,
+                               g_in_svm_elemets_b,
+                               0,
+                               NULL,
+                               NULL);
+    CHECK_OPENCL_ERROR(status, "clEnqueueSVMUnmap() failed for g_in_svm_elemets_b");
+
+    // block and wait for all unmap commands to complete
+    status = clFinish(g_command_queue);
+    CHECK_OPENCL_ERROR(status, "clFinish() failed");
+
+    fprintf_s(stdout, "Average a.s[0]  : %d\n", avg.s[0] / NUM_ELEMENTS);
+    fprintf_s(stdout, "Average a.s[1]  : %d\n", avg.s[1] / NUM_ELEMENTS);
+    fprintf_s(stdout, "Average b.s[0]  : %d\n", avg.s[2] / NUM_ELEMENTS);
+    fprintf_s(stdout, "Average b.s[1]  : %d\n", avg.s[3] / NUM_ELEMENTS);
+
+    return status;
+}
+
 
 int main(int argc, char const *argv[])
 {
     cl_int status = CL_SUCCESS;
+
+    srand(time(NULL));
 
     status = set_platform();
     CHECK_OPENCL_ERROR(status, "set_platform() failed");
@@ -259,6 +444,19 @@ int main(int argc, char const *argv[])
 
     status = set_device();
     CHECK_OPENCL_ERROR(status, "set_device() failed");
+
+    status = set_command_queue();
+    CHECK_OPENCL_ERROR(status, "set_command_queue() failed");
+
+    status = set_svm_buffers();
+    CHECK_OPENCL_ERROR(status, "set_svm_buffers() failed");
+
+    status = set_data();
+    CHECK_OPENCL_ERROR(status, "set_data() failed");
+
+    clSVMFree(g_context, g_in_svm_elemets_a);
+    clSVMFree(g_context, g_in_svm_elemets_b);
+    clSVMFree(g_context, g_out_svm_buffer);
 
     return 0;
 }
