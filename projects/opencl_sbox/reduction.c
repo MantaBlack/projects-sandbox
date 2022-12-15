@@ -34,19 +34,14 @@
         fprintf_s(stdout, "\n%s\n", msg); \
     }
 
-#define MAX(a, b) \
-    ({ \
-        __typeof__ (a) _a = (a); \
-        __typeof__ (a) _b = (b); \
-        _a > _b ? _a : _b; \
-    })
-
-#define MIN(a, b) \
-    ({ \
-        __typeof__ (a) _a = (a); \
-        __typeof__ (a) _b = (b); \
-        _a < _b ? _a : _b; \
-    })
+#define CHECK_NULL(val, msg) \
+    { \
+        if (val == NULL) \
+        { \
+            fprintf_s(stderr, "\n%s\nLocation : %s:%d\n", msg, __FILE__, __LINE__ ); \
+            exit(EXIT_FAILURE); \
+        } \
+    }
 
 
 const size_t         BLOCK_SIZE   = 256u;
@@ -65,6 +60,10 @@ static cl_kernel        g_kernel;
 static cl_int2*         g_in_svm_elemets_a = NULL;
 static cl_int2*         g_in_svm_elemets_b = NULL;
 static cl_int2*         g_out_svm_buffer   = NULL;
+
+static cl_int2*         g_host_elements_a = NULL;
+static cl_int2*         g_host_elements_b = NULL;
+static cl_int2*         g_host_output     = NULL;
 
 static size_t           g_num_ctx_devices;
 
@@ -385,16 +384,28 @@ static cl_int set_data(void)
     status = clFinish(g_command_queue);
     CHECK_OPENCL_ERROR(status, "clFinish() failed");
 
+    // allocate memory for host kernel
+    g_host_elements_a = (cl_int2*) malloc(size_bytes);
+    CHECK_NULL(g_host_elements_a, "malloc() failed");
+
+    g_host_elements_b = (cl_int2*) malloc(size_bytes);
+    CHECK_NULL(g_host_elements_b, "malloc() failed");
+
+    g_host_output = (cl_int2*) malloc(size_bytes);
+    CHECK_NULL(g_host_output, "malloc() failed");
+
     size_t i = 0;
     cl_int4 avg = {0};
 
     for (i = 0; i < NUM_ELEMENTS; ++i)
     {
-        g_in_svm_elemets_a[i].s[0] = rand();
-        g_in_svm_elemets_a[i].s[1] = rand();
+        g_in_svm_elemets_a[i] = (cl_int2){ {rand(), rand()} };
+        g_in_svm_elemets_b[i] = (cl_int2){ {rand(), rand()} };
 
-        g_in_svm_elemets_b[i].s[0] = rand();
-        g_in_svm_elemets_b[i].s[1] = rand();
+        g_host_elements_a[i] = g_in_svm_elemets_a[i];
+        g_host_elements_b[i] = g_in_svm_elemets_b[i];
+
+        g_host_output[i] = (cl_int2){0};
 
         avg.s[0] += g_in_svm_elemets_a[i].s[0];
         avg.s[1] += g_in_svm_elemets_a[i].s[1];
@@ -457,6 +468,10 @@ int main(int argc, char const *argv[])
     clSVMFree(g_context, g_in_svm_elemets_a);
     clSVMFree(g_context, g_in_svm_elemets_b);
     clSVMFree(g_context, g_out_svm_buffer);
+
+    free(g_host_elements_a);
+    free(g_host_elements_b);
+    free(g_host_output);
 
     return 0;
 }
