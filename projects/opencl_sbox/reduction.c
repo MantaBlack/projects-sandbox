@@ -377,9 +377,6 @@ static cl_int set_data(void)
                                  NULL);
     CHECK_OPENCL_ERROR(status, "clEnqueueSVMMemFill() failed for g_out_svm_buffer");
 
-    // issue any outstanding commands for the queue
-    clFlush(g_command_queue);
-
     // block and wait for all previously queued commands to complete
     status = clFinish(g_command_queue);
     CHECK_OPENCL_ERROR(status, "clFinish() failed");
