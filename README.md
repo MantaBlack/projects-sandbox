@@ -20,3 +20,8 @@
     "-I$file_path",
     "-IC:\\msys64\\ucrt64\\include"
 ```
+
+## OpenGL Tuturials
+
+- Install GLFW: `pacman -S mingw-w64-ucrt-x86_64-glfw`
+- Install GLAD: Follow instructions in tutorial
