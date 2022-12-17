@@ -87,7 +87,7 @@ int main(int argc, char const *argv[])
         /** clear only the color buffer at the start of a frame with a color
          * of our choice
          */
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);        
+        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
         // this will values set by glClearColor
         glClear(GL_COLOR_BUFFER_BIT);
 
