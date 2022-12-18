@@ -25,3 +25,4 @@
 
 - Install GLFW: `pacman -S mingw-w64-ucrt-x86_64-glfw`
 - Install GLAD: Follow instructions in tutorial
+- On BIANCA, I did not copy the KHR directory to include
