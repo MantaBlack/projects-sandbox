@@ -6,7 +6,7 @@ out vec4 frag_color;
 /** this is the output from the vertex shader. We need to make sure it is
  * the same name and data type. OpenGL will link them automatically
  */
-in vec4 vertex_color;
+in vec3 vertex_color;
 
 /** a Uniform is global, i.e., it is unique per shader program object.
  * It is used to send data from the CPU to shaders on the GPU. It can be
@@ -22,7 +22,7 @@ in vec4 vertex_color;
  * 
  * Here, let's use it to set the color from the CPU
  */
-uniform vec4 our_color;
+// uniform vec4 our_color;
 
 void main()
 {
@@ -30,5 +30,7 @@ void main()
     
     // frag_color = vertex_color; //setting color from vertex shader
 
-    frag_color = our_color;
+    // frag_color = our_color; // use with Uniform
+
+    frag_color = vec4(vertex_color, 1.0f);
 }

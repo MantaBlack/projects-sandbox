@@ -16,13 +16,18 @@
 
 enum
 {
+    RENDER_WIRE_FRAME = 0,
     WINDOW_HEIGHT     = 600,
     WINDOW_WIDTH      = 800,
     VIEWPORT_LEFT_X   = 0,
     VIEWPORT_BOTTOM_Y = 0,
-    INFO_LOG_SIZE     = 512
+    INFO_LOG_SIZE     = 512,
+    VERTEX_SIZE       = 3,   // number of components in a position/color vector
+    VERTEX_STRIDE     = 6    // stride of the vertex buffer (position + color)
 };
 
+static const char* VERTEX_SHADER_FILE   = "vertex_shader_color.glsl";
+static const char* FRAGMENT_SHADER_FILE = "fragment_shader.glsl";
 
 static char* read_file_to_string(char* contents, const char* filename, size_t* length)
 {
@@ -118,7 +123,7 @@ int main(int argc, char const *argv[])
     size_t length = 0;
 
     vertex_shader_source = read_file_to_string(vertex_shader_source,
-                                               "vertex_shader.glsl",
+                                               VERTEX_SHADER_FILE,
                                                &length);
 
     /** Compile the vertex shader
@@ -154,7 +159,7 @@ int main(int argc, char const *argv[])
     char* fragment_shader_source = NULL;
 
     fragment_shader_source = read_file_to_string(fragment_shader_source,
-                                                 "fragment_shader.glsl",
+                                                 FRAGMENT_SHADER_FILE,
                                                  &length);
 
     unsigned int fragment_shader;
@@ -214,13 +219,23 @@ int main(int argc, char const *argv[])
     /** using Elements Buffer Object (EBO), we want to draw a rectangle
      * here, we use 2 triangles because OpenGL works with triangles
      * we only need to define the unique vertices, so, 4 instead of 6 vertices
+     * 
+     * use this with vertex_shader.glsl
      */
-    float vertices[] =
-    {
-         0.5f,  0.5f, 0.0f,  // top right
-         0.5f, -0.5f, 0.0f,  // bottom right
-        -0.5f, -0.5f, 0.0f,  // bottom left
-        -0.5f,  0.5f, 0.0f   // top left
+    // float vertices[] =
+    // {
+    //      0.5f,  0.5f, 0.0f,  // top right
+    //      0.5f, -0.5f, 0.0f,  // bottom right
+    //     -0.5f, -0.5f, 0.0f,  // bottom left
+    //     -0.5f,  0.5f, 0.0f   // top left
+    // };
+
+    float vertices[] = 
+    {    /* positions   */  /*  colors    */
+         0.5f,  0.5f, 0.0f, 0.0f, 0.0f, 1.0f, // top right
+         0.5f, -0.5f, 0.0f, 1.0f, 0.0f, 0.0f, // bottom right
+        -0.5f, -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, // bottom left
+        -0.5f,  0.5f, 0.0f, 0.0f, 1.0f, 0.0f  // top left
     };
 
     unsigned int indices[] =
@@ -272,10 +287,10 @@ int main(int argc, char const *argv[])
 
     // tell OpenGL how to interpret our vertex array
     glVertexAttribPointer(0, // corresponds to the layout=0 set in the vertex shader
-                          3, // size of the vertex attribute (vec3)
+                          VERTEX_SIZE, // size of the vertex attribute (vec3)
                           GL_FLOAT, //type of the vertex attribute
                           GL_FALSE, // no normalization
-                          3 * sizeof(float), // space/stride (in bytes) between consecutive vertices
+                          VERTEX_STRIDE * sizeof(float), // space/stride (in bytes) between consecutive vertices
                           (void*) 0); //offset of where the data begins in the buffer
 
     /** Enable the vertex attribute that we have just configured
@@ -283,6 +298,15 @@ int main(int argc, char const *argv[])
      * The 0 here corresponds to the layout=0 in the vertex shader
      */
     glEnableVertexAttribArray(0);
+
+    // tell OpenGL about the color attribute of the vertex array
+    glVertexAttribPointer(1,
+                          VERTEX_SIZE,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          VERTEX_STRIDE * sizeof(float),
+                          (void*)(VERTEX_SIZE * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     /** Unbind the VBO
      * the call to glVertexAttribPointer registered VBO as the vertex attribute's
@@ -298,7 +322,10 @@ int main(int argc, char const *argv[])
     glBindVertexArray(0);
 
     // Draw in wireframe polygons
-    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    if (RENDER_WIRE_FRAME)
+    {
+        glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    }
 
     /**
      * This is the render loop.
