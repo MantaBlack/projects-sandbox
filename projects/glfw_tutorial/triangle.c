@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 
 #include <glad\glad.h>  // order is important. GLAD comes first
 #include <GLFW\glfw3.h>
@@ -203,22 +204,49 @@ int main(int argc, char const *argv[])
     /** define a single triangle
      * a vertex is defined in normalized device coordinates (NDC), in [-1, 1]
      */
-    float vertices[] = 
+    // float vertices[] = 
+    // {
+    //     -0.5f, -0.5f, 0.0f, // bottom-left vertex (x, y, z)
+    //      0.5f, -0.5f, 0.0f, // bottom-right
+    //      0.0f,  0.5f, 0.0f  // top
+    // };
+
+    /** using Elements Buffer Object (EBO), we want to draw a rectangle
+     * here, we use 2 triangles because OpenGL works with triangles
+     * we only need to define the unique vertices, so, 4 instead of 6 vertices
+     */
+    float vertices[] =
     {
-        -0.5f, -0.5f, 0.0f, // bottom-left vertex (x, y, z)
-         0.5f, -0.5f, 0.0f, // bottom-right
-         0.0f,  0.5f, 0.0f  // top
+         0.5f,  0.5f, 0.0f,  // top right
+         0.5f, -0.5f, 0.0f,  // bottom right
+        -0.5f, -0.5f, 0.0f,  // bottom left
+        -0.5f,  0.5f, 0.0f   // top left
+    };
+
+    unsigned int indices[] =
+    {
+        0, 1, 3, // first triangle
+        1, 2, 3  // second triangle
     };
 
     // create a vertex buffer object (VBO)
     unsigned int VBO;
     glGenBuffers(1, &VBO);
 
+    // create a vertex array object
     unsigned int VAO;
     glGenVertexArrays(1, &VAO);
 
+    // create an element buffer object
+    unsigned int EBO;
+    glGenBuffers(1, &EBO);
+
     // bind VAO first
     glBindVertexArray(VAO);
+
+    fprintf_s(stdout, "VBO: %u\n", VBO);
+    fprintf_s(stdout, "VAO: %u\n", VAO);
+    fprintf_s(stdout, "EBO: %u\n", EBO);
 
     /** VBO is a GL_ARRAY_BUFFER type.
      * we can bind to several buffers at once as long as they have different
@@ -232,6 +260,15 @@ int main(int argc, char const *argv[])
                  sizeof(vertices),
                  vertices,
                  GL_STATIC_DRAW); // data is set once and used many times
+
+    // bind the EBO
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+
+    // copy the indices to EBO for OpenGL to use
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(indices),
+                 indices,
+                 GL_STATIC_DRAW);
 
     // tell OpenGL how to interpret our vertex array
     glVertexAttribPointer(0, // corresponds to the layout=0 set in the vertex shader
@@ -261,7 +298,7 @@ int main(int argc, char const *argv[])
     glBindVertexArray(0);
 
     // Draw in wireframe polygons
-    // glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     /**
      * This is the render loop.
@@ -278,25 +315,46 @@ int main(int argc, char const *argv[])
         /** clear only the color buffer at the start of a frame with a color
          * of our choice
          */
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.f, 0.f, 0.f, 1.0f);
         
         // this will values set by glClearColor
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // retrieve time in seconds
+        float time_value  = glfwGetTime();
+
+        // vary color range in [0.0, 1.0]
+        float green_value = (sin(time_value) / 2.0f) + 0.5f;
+
+        // query location of the uniform variable
+        int vertex_color_location = glGetUniformLocation(shader_program, "our_color");
+
         /** activate the program object
          * every shader and rendering call after this line will use this program
          * object
+         * 
+         * This should be called first before attempting to update a uniform.
+         * It is not needed for querying the location of a uniform
          */
         glUseProgram(shader_program);
+
+        // update the uniform variable in the fragment shader
+        glUniform4f(vertex_color_location,
+                    0.0f,
+                    green_value,
+                    0.0f,
+                    1.0f);
 
         /** seeing as we only have a single VAO there's no need to bind it every time,
          * but we'll do so to keep things a bit more organized
          */
         glBindVertexArray(VAO);
 
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        // glDrawArrays(GL_TRIANGLES, 0, 3); we're now using EBO
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 
-        /* Unbind VAO here but no need here */
+        /* Unbind VAO here */
+        glBindVertexArray(0);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
