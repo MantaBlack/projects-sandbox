@@ -33,6 +33,6 @@
 /vs2022/test-sfml/x64/Debug
 /vs2022/test-sfml/.vs/test-sfml/FileContentIndex
 /vs2022/test-sfml/.vs/test-sfml/v17
-/.vs
 /x64
 /x32
+.vs
