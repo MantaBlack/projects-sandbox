@@ -21,8 +21,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>Win32Proj</Keyword>
-    <ProjectGuid>{bb79ebed-4ad3-4a6a-a007-1db21b0f76fe}</ProjectGuid>
-    <RootNamespace>testopencl</RootNamespace>
+    <ProjectGuid>{e0e63040-3ea9-4b65-8405-0d15b429d106}</ProjectGuid>
+    <RootNamespace>velocityverlet</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -108,13 +108,13 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(OPENCL_HEADERS);$(OPENCL_CPP_HEADERS)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(OPENCL_HEADERS);$(OPENCL_CPP_HEADERS);$(SFML_DIR)\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalLibraryDirectories>$(OPENCL_LIB)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>OpenCL.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(OPENCL_LIB);$(SFML_DIR)\lib</AdditionalLibraryDirectories>
+      <AdditionalDependencies>OpenCL.lib;sfml-graphics-d.lib;sfml-window-d.lib;sfml-system-d.lib;freetype.lib;gdi32.lib;$(CoreLibraryDependencies);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -135,9 +135,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="kernel_file.cl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

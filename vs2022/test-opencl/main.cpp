@@ -1,7 +1,8 @@
 #define CL_HPP_ENABLE_EXCEPTIONS
-#define CL_HPP_TARGET_OPENCL_VERSION 210
+#define CL_TARGET_OPENCL_VERSION 220
+#define CL_HPP_TARGET_OPENCL_VERSION 220
 
-#include <CL/cl2.hpp>
+#include <CL/opencl.hpp>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -443,7 +444,7 @@ static void verify_results()
 {
     real2* device_results = reinterpret_cast<real2*>(g_pin_particles);
 
-    for (auto i = 0; i < g_num_particles; ++i)
+    for (cl_uint i = 0; i < g_num_particles; ++i)
     {
         if (!is_close(device_results[i].s[0], g_host_particles[i].s[0]) ||
             !is_close(device_results[i].s[1], g_host_particles[i].s[1]))
