@@ -130,11 +130,11 @@ static void draw_circle()
 
             if (vertices.getVertexCount() == 0)
             {
-                vertices.append(sf::Vertex(center, colors[c]));
+                vertices.append(sf::Vertex(center, sf::Color::Yellow));
             }
             else if (vertices.getVertexCount() < 3)
             {
-                vertices.append(sf::Vertex(center + sf::Vector2f(x, y), colors[c]));
+                vertices.append(sf::Vertex(center + sf::Vector2f(x, y), sf::Color::Yellow));
             }
             else
             {
