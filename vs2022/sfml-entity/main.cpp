@@ -6,12 +6,17 @@
 
 #include <iostream>
 #include <string>
+#include <cstdlib>
 
 static unsigned int NUM_PARTICLES = 10000;
 
 int main()
 {
-    sf::RenderWindow window(sf::VideoMode(1920, 1080), "My Entity!");
+    const unsigned int WIDTH  = 1920;
+    const unsigned int HEIGHT = 1080;
+
+    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "My Entity!");
+    //window.setFramerateLimit(60);
 
     // create the entity
     MyEntity my_entity(NUM_PARTICLES);
@@ -46,9 +51,9 @@ int main()
         }
 
         // make the partile system follow the mouse
-        sf::Vector2i mouse = sf::Mouse::getPosition(window);
+        sf::Vector2i mouse = sf::Mouse::getPosition(window); 
         my_entity.set_emitter(window.mapPixelToCoords(mouse));
-
+        
         // update it
         sf::Time elapsed = clock.restart();
 
@@ -58,6 +63,7 @@ int main()
 
         window.clear();
         window.draw(my_entity);
+
         text.setString(std::to_string(duration.asSeconds()));
         window.draw(text);
         window.display();

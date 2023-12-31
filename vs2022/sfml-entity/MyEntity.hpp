@@ -7,7 +7,6 @@ private:
     virtual void draw(sf::RenderTarget& target,
         sf::RenderStates states) const;
 
-private:
     struct Particle
     {
         sf::Vector2f velocity;
@@ -21,15 +20,20 @@ private:
     sf::Time              m_lifetime;
     sf::Vector2f          m_emitter;
 
+    float m_radius = 5.f;
+    std::vector<sf::CircleShape> m_circles;
+
 public:
     MyEntity(unsigned int count)
         : m_particles(count),
         m_vertices(sf::Points, count),
         m_lifetime(sf::seconds(3.f)),
-        m_emitter(0.f, 0.f)
+        m_emitter(0.f, 0.f),
+        m_circles(count, sf::CircleShape(m_radius))
     {}
 
     void set_emitter(sf::Vector2f position);
 
     void update(sf::Time elapsed);
+
 };

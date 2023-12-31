@@ -3,8 +3,13 @@
 static void test_sfml()
 {
 	sf::RenderWindow window(sf::VideoMode(200, 200), "SFML works!");
-    sf::CircleShape shape(100.f);
-    shape.setFillColor(sf::Color::Green);
+    const float radius = 2.f;
+
+    sf::CircleShape shape1(radius);
+    shape1.setFillColor(sf::Color::Green);
+
+    sf::CircleShape shape2(radius);
+    shape2.setFillColor(sf::Color::Red);
 
     while (window.isOpen())
     {
@@ -16,7 +21,16 @@ static void test_sfml()
         }
 
         window.clear();
-        window.draw(shape);
+        
+        float x = 50.f - radius;
+        float y = 50.f - radius;
+
+        shape1.setPosition(x, y);
+        window.draw(shape1);
+        
+        shape2.setPosition(x+50.f, y+50.f);
+        window.draw(shape2);
+
         window.display();
     }
 }
@@ -66,9 +80,11 @@ static void draw_tutorial()
     }
 }
 
+
 int main()
 {
-    draw_tutorial();
+    //draw_tutorial();
+    test_sfml();
 
     return 0;
 }
