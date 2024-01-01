@@ -8,16 +8,7 @@ void ParticleEmitter::draw(sf::RenderTarget& target, sf::RenderStates states) co
 
 	states.texture = NULL;
 
-	target.draw(m_vertices);
-
-	/*const std::size_t total_vertices = m_num_triangles * 3 * m_particles.size();
-	const std::size_t vertex_count = m_num_triangles * 3;
-
-	for (size_t start_idx = 0; start_idx < total_vertices; start_idx += vertex_count)
-	{
-		target.draw(&m_vertices[start_idx], vertex_count, sf::Triangles);
-	}*/
-
+	target.draw(m_vertices, states);
 }
 
 void ParticleEmitter::reset_particle(std::size_t index)
@@ -46,7 +37,6 @@ void ParticleEmitter::draw_particle(std::size_t index)
 	const std::size_t total_vertices = m_num_triangles * 3;
 	const float sector_angle         = two_pi / m_num_triangles;
 
-	//sf::VertexArray new_vertices(sf::Triangles);
 	Particle p = m_particles[index];
 
 	std::size_t start_idx = index * total_vertices;
@@ -57,26 +47,18 @@ void ParticleEmitter::draw_particle(std::size_t index)
 	{
 		sf::Vector2f vertex(std::cos(theta) * m_radius, std::sin(theta) * m_radius);
 
-		//std::size_t vertex_count = new_vertices.getVertexCount();
-
 		if (idx == start_idx)
 		{
-			//new_vertices.append(sf::Vertex(p.center, p.color));
 			m_vertices[idx] = sf::Vertex(p.center, p.color);
 			++idx;
 		}
 		else if (idx < start_idx + 3)
 		{
-			//new_vertices.append(sf::Vertex(p.center + vertex, p.color));
 			m_vertices[idx] = sf::Vertex(p.center + vertex, p.color);
 			++idx;
 		}
 		else
 		{
-			/*new_vertices.append(sf::Vertex(new_vertices[vertex_count - 1].position, p.color));
-			new_vertices.append(sf::Vertex(p.center, p.color));
-			new_vertices.append(sf::Vertex(p.center + vertex, p.color));*/
-
 			m_vertices[idx] = sf::Vertex(m_vertices[idx - 1].position, p.color);
 			m_vertices[idx] = sf::Vertex(p.center, p.color);
 			m_vertices[idx] = sf::Vertex(p.center + vertex, p.color);

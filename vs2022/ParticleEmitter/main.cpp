@@ -15,7 +15,7 @@ int main()
     const float LIFETIME = 3.f;
     const float RADIUS = 10.f;
     const std::size_t NUM_TRIANGLES = 12;
-    const std::size_t NUM_PARTICLES = 10000;
+    const std::size_t NUM_PARTICLES = 1000;
 
     sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Particle Emitter");
     //window.setFramerateLimit(60);

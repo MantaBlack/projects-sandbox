@@ -29,8 +29,8 @@ private:
 
 public:
 	ParticleEmitter(std::size_t num_particles,
-		float lifetime, 
-		float radius, 
+		float lifetime,
+		float radius,
 		std::size_t num_triangles)
 		: m_particles(num_particles),
 		m_vertices(sf::Triangles, num_triangles * 3 * num_particles),
