@@ -1,13 +1,22 @@
 # General Notes
 
-## OpenCL on Windows
+## After clean setup of Windows 11 on BIANCA (December 2023)
+### SFML on Windows with VS2022
+- Follow instructions in SFML tutorial page
 
+### OpenCL
+- Using C and CPP headers from Khronos Git repos
+- Build Khronos Git repo for ICD loader to get OpenCL libraries
+
+
+## Previous setup with Windows 10
+### OpenCL on Windows
 - Install MinGW for Windows and use `pacman` to install opencl headers and ICD
 
-## Install Clang for MSYS2
+### Install Clang for MSYS2
 - `pacman -S mingw-w64-x86_64-clang`
 
-## Install EasyClangComplete
+### Install EasyClangComplete
 
 ```javascript
  "common_flags" : [
@@ -21,8 +30,7 @@
     "-IC:\\msys64\\ucrt64\\include"
 ```
 
-## OpenGL Tuturials
-
+### OpenGL Tuturials
 - Install GLFW: `pacman -S mingw-w64-ucrt-x86_64-glfw`
 - Install GLAD: Follow instructions in tutorial
 - On BIANCA, I did not copy the KHR directory to include
