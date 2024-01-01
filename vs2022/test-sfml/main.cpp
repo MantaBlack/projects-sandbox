@@ -120,10 +120,9 @@ static void draw_circle()
         sf::VertexArray vertices(sf::Triangles);
 
         const sf::Vector2f center(400.f, 400.f);
-        float theta = 0.f;
         int c = 0;
 
-        for (; vertices.getVertexCount() < total_vertices; theta += sector_angle)
+        for (float theta = 0.f; vertices.getVertexCount() < total_vertices; theta += sector_angle)
         {
             float x = std::cos(theta) * radius;
             float y = std::sin(theta) * radius;

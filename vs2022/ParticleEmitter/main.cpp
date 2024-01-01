@@ -1,4 +1,4 @@
-#include "MyEntity.hpp"
+#include "ParticleEmitter.hpp"
 
 #include <SFML/Graphics.hpp>
 #include <SFML/System.hpp>
@@ -8,18 +8,20 @@
 #include <iostream>
 #include <string>
 
-static unsigned int NUM_PARTICLES = 10000;
-
 int main()
 {
     const unsigned int WIDTH  = 1920;
     const unsigned int HEIGHT = 1080;
+    const float LIFETIME = 3.f;
+    const float RADIUS = 10.f;
+    const std::size_t NUM_TRIANGLES = 12;
+    const std::size_t NUM_PARTICLES = 10000;
 
-    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "My Entity!");
+    sf::RenderWindow window(sf::VideoMode(WIDTH, HEIGHT), "Particle Emitter");
     //window.setFramerateLimit(60);
 
     // create the entity
-    MyEntity my_entity(NUM_PARTICLES);
+    ParticleEmitter particle_emitter(NUM_PARTICLES, LIFETIME, RADIUS, NUM_TRIANGLES);
 
     sf::Font font;
 
@@ -51,18 +53,18 @@ int main()
         }
 
         // make the partile system follow the mouse
-        sf::Vector2i mouse = sf::Mouse::getPosition(window); 
-        my_entity.set_emitter(window.mapPixelToCoords(mouse));
-        
+        sf::Vector2i mouse = sf::Mouse::getPosition(window);
+        particle_emitter.set_emitter(window.mapPixelToCoords(mouse));
+
         // update it
         sf::Time elapsed = clock.restart();
 
         sf::Clock timer;
-        my_entity.update(elapsed);
+        particle_emitter.update(elapsed);
         sf::Time duration = timer.restart();
 
         window.clear();
-        window.draw(my_entity);
+        window.draw(particle_emitter);
 
         text.setString(std::to_string(duration.asSeconds()));
         window.draw(text);

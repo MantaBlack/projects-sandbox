@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "sfml-entity", "..\sfml-enti
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "velocity-verlet", "..\velocity-verlet\velocity-verlet.vcxproj", "{E0E63040-3EA9-4B65-8405-0D15B429D106}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ParticleEmitter", "..\ParticleEmitter\ParticleEmitter.vcxproj", "{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -61,6 +63,14 @@ Global
 		{E0E63040-3EA9-4B65-8405-0D15B429D106}.Release|x64.Build.0 = Release|x64
 		{E0E63040-3EA9-4B65-8405-0D15B429D106}.Release|x86.ActiveCfg = Release|Win32
 		{E0E63040-3EA9-4B65-8405-0D15B429D106}.Release|x86.Build.0 = Release|Win32
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Debug|x64.ActiveCfg = Debug|x64
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Debug|x64.Build.0 = Debug|x64
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Debug|x86.ActiveCfg = Debug|Win32
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Debug|x86.Build.0 = Debug|Win32
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x64.ActiveCfg = Release|x64
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x64.Build.0 = Release|x64
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x86.ActiveCfg = Release|Win32
+		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
