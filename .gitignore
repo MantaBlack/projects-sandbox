@@ -36,3 +36,5 @@
 /x64
 /x32
 .vs
+/vs2022/YoutubeOpenGL/x64/Debug
+/vs2022/test-cmake/out/build/x64-debug

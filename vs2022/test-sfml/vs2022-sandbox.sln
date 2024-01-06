@@ -15,6 +15,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "velocity-verlet", "..\veloc
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ParticleEmitter", "..\ParticleEmitter\ParticleEmitter.vcxproj", "{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "YoutubeOpenGL", "..\YoutubeOpenGL\YoutubeOpenGL.vcxproj", "{A2572485-17AB-4E70-8244-8E7173854561}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -71,6 +73,14 @@ Global
 		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x64.Build.0 = Release|x64
 		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x86.ActiveCfg = Release|Win32
 		{48E29AB4-2EC1-4CBA-B68B-BBFB2F19E59E}.Release|x86.Build.0 = Release|Win32
+		{A2572485-17AB-4E70-8244-8E7173854561}.Debug|x64.ActiveCfg = Debug|x64
+		{A2572485-17AB-4E70-8244-8E7173854561}.Debug|x64.Build.0 = Debug|x64
+		{A2572485-17AB-4E70-8244-8E7173854561}.Debug|x86.ActiveCfg = Debug|Win32
+		{A2572485-17AB-4E70-8244-8E7173854561}.Debug|x86.Build.0 = Debug|Win32
+		{A2572485-17AB-4E70-8244-8E7173854561}.Release|x64.ActiveCfg = Release|x64
+		{A2572485-17AB-4E70-8244-8E7173854561}.Release|x64.Build.0 = Release|x64
+		{A2572485-17AB-4E70-8244-8E7173854561}.Release|x86.ActiveCfg = Release|Win32
+		{A2572485-17AB-4E70-8244-8E7173854561}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
