@@ -19,11 +19,19 @@ set(GLFW_LIB "D:/TOOLS/GLFW/lib/")
 set(HEADER_FILES
     ${GLAD_INCLUDE}/glad/glad.h
     ${GLFW_INCLUDE}/GLFW/glfw3.h
+    "ShaderClass.hpp"
+    "VertexBufferObject.hpp"
+    "ElementBufferObject.hpp"
+    "VertexArrayObject.hpp"
 )
 
 set(SOURCE_FILES
     "main.cpp"
     "glad.c"
+    "ShaderClass.cpp"
+    "VertexBufferObject.cpp"
+    "ElementBufferObject.cpp"
+    "VertexArrayObject.cpp"
     ${HEADER_FILES}
 )
 
