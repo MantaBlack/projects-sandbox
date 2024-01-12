@@ -14,9 +14,6 @@ Shader::Shader(const char* vertex_file, const char* fragment_file)
     std::string vertex_code = get_file_contents(vertex_file);
     std::string fragment_code = get_file_contents(fragment_file);
 
-    std::cout << vertex_code << std::endl;
-    std::cout << fragment_code << std::endl;
-
     const char* vertex_source = vertex_code.c_str();
     const char* fragment_source = fragment_code.c_str();
 
